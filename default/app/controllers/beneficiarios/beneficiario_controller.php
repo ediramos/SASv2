@@ -2,24 +2,22 @@
 /**
  * S.A.S
  *
- * Descripcion: Controlador que se encarga de la gestión de los beneficiarioes del sistema
- *
+ * Descripcion: Controlador que se encarga de la gestión de los beneficiarioes del sistema 
  * @category    
  * @package     Controllers 
  * @author      Javier León (jel1284@gmail.com)
  * @copyright   Copyright (c) 2014 E.M.S. Arroz del Alba S.A. (http://autogestion.arrozdelalba.gob.ve)
  */
 
-Load::models('beneficiarios/beneficiario','personas/persona', 'sistema/usuario');
+Load::models('beneficiarios/beneficiario','personas/persona', 'sistema/usuario','config/discapacidad', 'beneficiarios/titular', 'beneficiarios/discapacidad_beneficiario');
 
 class beneficiarioController extends BackendController {
-    
     /**
      * Método que se ejecuta antes de cualquier acción
      */
     protected function before_filter() {
         //Se cambia el nombre del módulo actual
-        $this->page_module = 'Gestión de beneficiarios';
+        $this->page_module = 'Beneficiarios';
     }
     
     /**
@@ -48,10 +46,36 @@ class beneficiarioController extends BackendController {
         $this->value = $value;
         $this->page_title = 'Búsqueda de beneficiarios del sistema';        
     }
+    /** Metodo para excluir  a un beneficiario **/
+    public function excluir($key) {        
+        if(!$id = DwSecurity::isValidKey($key, 'excluir_bene', 'int')) {
+            return DwRedirect::toAction('listar');
+        }
+        $beneficiario = new beneficiario();
+        $bene = $beneficiario->getInformacionbeneficiario($id);
+        if(!$bene) {            
+            DwMessage::get('id_no_found');
+            return DwRedirect::toAction('listar');
+        }
+        if(Input::hasPost('beneficiario')) {
+            $es = "0";
+            if(beneficiario::setEBeneficiario('update', Input::post('beneficiario'), array('estado_beneficiario'=>$es))){
+                DwMessage::valid('¡El beneficiario se ha Excluido con Exito!.');
+                return DwRedirect::toAction('listar');
+            }       
+        } 
+        $this->page_title = 'Excluir Beneficiario';
+        $this->beneficiarios = $bene;
+    }
+
+/**
+     * Método para obtener beneficiarios
+     */
     public function getBeneficiarios(){
        View::response('view'); 
        $this->titular_id=Input::post('titular_id');
     }    
+    
 /**
      * Método para obtener beneficiarios
      */
@@ -62,80 +86,80 @@ class beneficiarioController extends BackendController {
         View::select(NULL);
         if (Input::isAjax()) { //solo devolvemos los estados si se accede desde ajax 
             $busqueda = Input::post('busqueda');
-            $beneficiarios = Load::model('beneficiarios/beneficiario')->obtener_beneficiarios($busqueda);
+            $beneficiarios = Load::model('beneficiarios/beneficiario')->obtener_beneficiariosautocomplete($busqueda);
             die(json_encode($beneficiarios)); // solo devolvemos los datos, sin template ni vista
             //json_encode nos devolverá el array en formato json ["aragua","carabobo","..."]
         }
     }
-
     /**
      * Método para listar
      */
     public function listar($order='order.id.asc', $page='pag.1') { 
         $page = (Filter::get($page, 'page') > 0) ? Filter::get($page, 'page') : 1;
         $beneficiario = new beneficiario();
+
         $this->beneficiarios = $beneficiario->getListadobeneficiario('todos', $order, $page);
         $this->order = $order;        
         $this->page_title = 'Listado de beneficiarios del sistema';
     }
-    
     /**
      * Método para agregar
      */
-    public function agregar() {
-        if(Input::hasPost('persona') && Input::hasPost('beneficiario')) {
+    public function agregar($key) {
+        if(!$id = DwSecurity::isValidKey($key, 'shw_titular', 'int')) {
+            return DwRedirect::toAction('listar');
+        }
+        //El id del titular que tendra a los beneficiarios asociados
+        $this->idtitular = $id;
+        $beneficiario = new beneficiario();
+        $discapacidad = new Discapacidad();
+        $titular = new Titular();
+        $this->titulares = $titular->getInformacionTitular($id);
+        $this->bene = $beneficiario->getListadoBeneTitular($id);
+        if(Input::hasPost('beneficiario')) {
             ActiveRecord::beginTrans();
-            //Guardo la persona
-            $persona = Persona::setPersona('create', Input::post('persona'));
-            if($persona) {
-                if(beneficiario::setbeneficiario('create', Input::post('beneficiario'), array('persona_id'=>$persona->id))) {
-                    ActiveRecord::commitTrans();
-                    DwMessage::valid('El beneficiario se ha creado correctamente.');
-                    return DwRedirect::toAction('listar');
+            //Guardo beneficiario
+            $benefici = beneficiario::setbeneficiario('create', Input::post('beneficiario'));
+                if($benefici){
+                    if (DiscapacidadBeneficiario::setDiscapacidadBeneficiario(Input::post('discapacidad'),$benefici->id)){
+                        ActiveRecord::commitTrans();
+                        DwMessage::valid('El beneficiario se ha creado correctamente.');
+                        return DwRedirect::toAction('agregar/'.$key);
+                    }
+                  else{
+                     ActiveRecord::rollbackTrans();
+                  }
                 }
-            } else {
-                ActiveRecord::rollbackTrans();
-            }            
         }
         $this->page_title = 'Agregar beneficiario';
+        $this->discapacidad = $discapacidad->getListadoDiscapacidad();
     }
-    
     /**
      * Método para editar
      */
     public function editar($key) {        
-        if(!$id = DwSecurity::isValidKey($key, 'upd_beneficiario', 'int')) {
-            return DwRedirect::toAction('listar');
+        if(!$id = DwSecurity::isValidKey($key, 'editar_bene', 'int')) {
+            return DwRedirect::toAction('titular/listar');
         }
-        
         $beneficiario = new beneficiario();
+        $discapacidad_bene = new DiscapacidadBeneficiario();
+        $discapacidad = new Discapacidad();
+        $this->discapacidad = $discapacidad->getListadoDiscapacidad();
+        $this->discapacidad_bene = $discapacidad_bene->getDiscapacidadBeneficiario($id);
         if(!$beneficiario->getInformacionbeneficiario($id)) {
             DwMessage::get('id_no_found');    
-            return DwRedirect::toAction('listar');
-        }                
-        
+            return DwRedirect::toAction('titular/listar');
+        }
         if(Input::hasPost('beneficiario')) {
-            if(DwSecurity::isValidKey(Input::post('beneficiario_id_key'), 'form_key')) {
-                ActiveRecord::beginTrans();
-                //Guardo la persona
-                $persona = Persona::setPersona('update', Input::post('persona'), array('id'=>$beneficiario->persona_id));
-                if($persona) {
-                    if(beneficiario::setbeneficiario('update', Input::post('beneficiario'), array('id'=>$beneficiario->persona_id))) {
-                        ActiveRecord::commitTrans();
-                        DwMessage::valid('El beneficiario se ha actualizado correctamente.');
-                        return DwRedirect::toAction('listar');
-                    }
-                } else {
-                    ActiveRecord::rollbackTrans();
-                } 
+            $beneficiario = beneficiario::setEBeneficiario('update', Input::post('beneficiario'), Input::post('metodo')) ;
+            if($beneficiario){
+                DwMessage::valid('El Beneficiario se ha actualizado correctamente.');
+                return DwRedirect::toAction('../titular/listar');
             }
-        }        
-        $this->temas = DwUtils::getFolders(dirname(APP_PATH).'/public/css/backend/themes/');
+        }
         $this->beneficiario = $beneficiario;
         $this->page_title = 'Actualizar beneficiario';
-        
     }
-    
     /**
      * Método para inactivar/reactivar
      */
@@ -190,7 +214,6 @@ class beneficiarioController extends BackendController {
         
         $this->beneficiario = $beneficiario;
         $this->page_title = 'Información del beneficiario';
-        
     }
     
     /**
@@ -209,4 +232,3 @@ class beneficiarioController extends BackendController {
     }
     
 }
-

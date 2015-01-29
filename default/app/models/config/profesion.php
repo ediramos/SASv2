@@ -63,17 +63,15 @@ class Profesion extends ActiveRecord {
      * @param int $page 
      * @return ActiveRecord
      */
-    public function getListadoProfesion($order='order.nombre.asc', $page='', $empresa=null) {
-        $columns = 'profesion.*';
-        $join = '';        
-        //$conditions 
+    public function getListadoProfesion($order='order.nombre.asc', $page='') {
+       $columns = 'profesion.*';
         $order = $this->get_order($order, 'profesion', array('profesion'=>array('ASC'=>'profesion.nombre ASC, profesion.observacion ASC',
                                                                               'DESC'=>'profesion.nombre DESC, profesion.observacion ASC'),
                                                             'observacion'));
         if($page) {                
-            return $this->paginated("columns: $columns", "join: $join", "order: $order", "page: $page");
+            return $this->paginated("columns: $columns", "order: $order", "page: $page");
         } else {
-            return $this->find("columns: $columns", "join: $join", "order: $order", "page: $page");            
+            return $this->find("columns: $columns", "order: $order", "page: $page");            
         }
     }
     
@@ -112,9 +110,44 @@ class Profesion extends ActiveRecord {
             DwMessage::error('Lo sentimos, pero ya existe una sucursal registrada con el mismo nombre y ciudad.');
             return 'cancel';
         }
-        
     }
-    
+     /**
+     * Método para buscar sucursales
+     */
+    public function getAjaxProfesiones($field, $value, $order='', $page=0) {
+        $value = Filter::get($value, 'string');
+        if( strlen($value) < 1 OR ($value=='none') ) {
+            return NULL;
+        }
+        $columns = 'profesion.* ';
+        $order = $this->get_order($order, 'nombre', array(                        
+            'nombre' => array(
+                'ASC'=>'profesion.nombre ASC, profesion.nombre ASC', 
+                'DESC'=>'profesion.nombre DESC, profesion.nombre DESC'
+            ),
+            'observacion' => array(
+                'ASC'=>'profesion.observacion ASC, profesion.observacion ASC', 
+                'DESC'=>'profesion.observacion DESC, profesion.observacion DESC'
+            ),
+        ));
+        
+        //Defino los campos habilitados para la búsqueda
+        $fields = array('nombre', 'observacion');
+        if(!in_array($field, $fields)) {
+            $field = 'nombre';
+        }        
+        //if(! ($field=='parroquia' && $value=='todas') ) {
+          $conditions= " $field LIKE '%$value%'";
+        //} 
+
+        if($page) {
+            return $this->paginated("columns: $columns", "conditions: $conditions",  "order: $order", "page: $page");
+        } else {
+            return $this->find("columns: $columns", "conditions: $conditions", "order: $order");
+        }  
+        //"conditions: $conditions",
+    } 
+   
     /**
      * Callback que se ejecuta antes de eliminar
      */

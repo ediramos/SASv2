@@ -8,7 +8,6 @@
  * @copyright    
  */
 class Patologia extends ActiveRecord {
-    
     /**
      * Constante para definir el id de la oficina principal
      */
@@ -18,14 +17,7 @@ class Patologia extends ActiveRecord {
      * Método para definir las relaciones y validaciones
      */
     protected function initialize() {
-    /*  $this->belongs_to('empresa');
-        $this->belongs_to('ciudad');
-        $this->has_many('usuario');
-
-        $this->validates_presence_of('sucursal', 'message: Ingresa el nombre de la sucursal');        
-        $this->validates_presence_of('direccion', 'message: Ingresa la dirección de la sucursal.');
-        $this->validates_presence_of('ciudad_id', 'message: Indica la ciudad de ubicación de la sucursal.');
-    */            
+        $this->has_many('solicitud_servicio_patologia');
     }  
         
     /**
@@ -40,7 +32,6 @@ class Patologia extends ActiveRecord {
         $condicion ="patologia.id = '$id'";
         return $this->find_first("columns: $columnas", "join: $join", "conditions: $condicion");
     } 
-    
     /**
      * Método que devuelve las sucursales
      * @param string $order
@@ -50,17 +41,14 @@ class Patologia extends ActiveRecord {
     public function getListadoPatologia($order='order.nombre.asc', $page='', $empresa=null) {
         $columns = 'patologia.*';
         $join = '';        
-        //$conditions 
-        $order = $this->get_order($order, 'patologia', array('patologia'=>array('ASC'=>'patologia.nombre ASC, patologia.observacion ASC',
-                                                                              'DESC'=>'patologia.nombre DESC, patologia.observacion ASC'),
-                                                            'observacion'));
+        $conditions ="activo=TRUE ";
+        $order = $this->get_order($order, 'patologia', array('patologia'=>array('ASC'=>'patologia.nombre ASC, patologia.observacion ASC','DESC'=>'patologia.nombre DESC, patologia.observacion ASC'),'observacion'));
         if($page) {                
-            return $this->paginated("columns: $columns", "join: $join", "order: $order", "page: $page");
+            return $this->paginated("columns: $columns", "join: $join", "order: $order", "conditions: $conditions", "page: $page");
         } else {
-            return $this->find("columns: $columns", "join: $join", "order: $order", "page: $page");            
+            return $this->find("columns: $columns", "join: $join", "order: $order", "conditions: $conditions", "page: $page");            
         }
     }
-    
     /**
      * Método para setear
      * @param string $method Método a ejecutar (create, update, save)
@@ -89,7 +77,7 @@ class Patologia extends ActiveRecord {
    public function obtener_patologias($patologia) {
         if ($patologia != '') {
             $patologia = stripcslashes($patologia);
-            $res = $this->find('columns: id,descripcion', "descripcion like '%{$patologia}%'");
+            $res = $this->find('columns: id,descripcion', "descripcion like '%{$patologia}%' AND activo=TRUE" );
             if ($res) {
                 foreach ($res as $patologia) {
                     $patologias[] = array('id'=>$patologia->id,'value'=>$patologia->descripcion);
@@ -110,12 +98,10 @@ class Patologia extends ActiveRecord {
         $conditions = "descripcion = '$this->descripcion'";
         $conditions.= (isset($this->id)) ? " AND id != $this->id" : '';
         if($this->count("conditions: $conditions")) {
-            DwMessage::error('Lo sentimos, pero ya existe una sucursal registrada con el mismo nombre y ciudad.');
+            DwMessage::error('Lo sentimos, pero ya existe una patologia registrada con el mismo nombre.');
             return 'cancel';
         }
-        
     }
-    
     /**
      * Callback que se ejecuta antes de eliminar
      */
@@ -125,5 +111,4 @@ class Patologia extends ActiveRecord {
             return 'cancel';
         }
     }
-    
 }

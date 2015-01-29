@@ -1,7 +1,5 @@
 <?php
 /**
- * Dailyscript - Web | App | Media
- *
  * Descripcion: Controlador que se encarga de la gestión de las sucursales de la empresa
  *
  * @category    
@@ -11,6 +9,7 @@
  */
 
 Load::models('config/sucursal');
+Load::models('params/pais', 'params/estado', 'params/municipio', 'params/parroquia');
 
 class SucursalController extends BackendController {
     
@@ -28,6 +27,25 @@ class SucursalController extends BackendController {
     public function index() {
         DwRedirect::toAction('listar');
     }
+    /**
+     * Método para buscar
+     */
+    public function buscar($field='sucursal', $value='none', $order='order.id.asc', $page=1) {        
+        $page = (Filter::get($page, 'page') > 0) ? Filter::get($page, 'page') : 1;
+        $field = (Input::hasPost('field')) ? Input::post('field') : $field;
+        $value = (Input::hasPost('field')) ? Input::post('value') : $value;
+        $value = strtoupper($value);
+        $sucursal = new Sucursal();
+        $sucursales = $sucursal->getAjaxSucursales($field, $value, $order, $page);
+        if(empty($sucursales->items)) {
+            DwMessage::info('No se han encontrado registros');
+        }
+        $this->sucursales = $sucursales;
+        $this->order = $order;
+        $this->field = $field;
+        $this->value = $value;
+        $this->page_title = 'Búsqueda de sucursales del sistema';        
+    }
     
     /**
      * Método para listar
@@ -39,19 +57,24 @@ class SucursalController extends BackendController {
         $this->order = $order;        
         $this->page_title = 'Listado de sucursales';
     }
-    
     /**
      * Método para agregar
      */
     public function agregar() {
-        $empresa = Session::get('empresa', 'config');
-        if(Input::hasPost('sucursal')) {
-            if(Sucursal::setSucursal('create', Input::post('sucursal'), array('empresa_id'=>$empresa->id, 'parroquia_id'=>Input::post('parroquia_id')))) {
+        $pais = new Pais(); 
+        $estado = new Estado(); 
+        $municipio = new Municipio();
+        //$empresa = Session::get('empresa', 'config');
+        $empresa = 1;
+        if(Input::hasPost('sucursal')){
+            if(Sucursal::setSucursal('create', Input::post('sucursal'), array('empresa_id'=>$empresa))){
                 DwMessage::valid('La sucursal se ha registrado correctamente!');
                 return DwRedirect::toAction('listar');
-            }            
+            }  
         } 
-        //$this->parroquias = Load::model('params/parroquia')->getParroquiasToJson();
+        $this->pais = $pais->getListadoPais();           
+        $this->estado = $estado->getListadoEstado(); 
+        $this->municipio = $municipio->getListadoMunicipio(); 
         $this->page_title = 'Agregar sucursal';
     }
     
@@ -70,12 +93,11 @@ class SucursalController extends BackendController {
         }
         
         if(Input::hasPost('sucursal') && DwSecurity::isValidKey(Input::post('sucursal_id_key'), 'form_key')) {
-            if(Sucursal::setSucursal('update', Input::post('sucursal'), array('id'=>$id, 'empresa_id'=>$sucursal->empresa_id, 'parroquia_id'=>Input::post('parroquia_id')))) {
+            if(Sucursal::setSucursal('update', Input::post('sucursal'), array('id'=>$id, 'empresa_id'=>$sucursal->empresa_id))){
                 DwMessage::valid('La sucursal se ha actualizado correctamente!');
                 return DwRedirect::toAction('listar');
             }
         } 
-        //$this->parroquias = Load::model('params/parroquia')->getParroquiasToJson();
         $this->sucursal = $sucursal;
         $this->page_title = 'Actualizar sucursal';        
     }
@@ -103,6 +125,25 @@ class SucursalController extends BackendController {
         
         return DwRedirect::toAction('listar');
     }
+    //obtener los paises, estados, parroquias, etc
+
+    public function getEstadoPais(){
+       View::response('view'); 
+       $this->pais_id=Input::post('pais_id');
+    }
+
+    public function getMunicipioEstado(){
+       View::response('view'); 
+       $this->estado_id=Input::post('estado_id');
+    }
+
+     public function getParroquiaMunicipio(){
+       View::response('view'); 
+       $this->municipio_id=Input::post('municipio_id');
+    }
+
+
+
     
 }
 

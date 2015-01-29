@@ -28,14 +28,6 @@ class Sucursal extends ActiveRecord {
         $this->belongs_to('municipio');        
         $this->belongs_to('parroquia');
         $this->has_many('usuario');
-        /*
-        $this->validates_presence_of('sucursal', 'message: Ingresa el nombre de la sucursal');        
-        $this->validates_presence_of('direccion', 'message: Ingresa la dirección de la sucursal.');
-		$this->validates_presence_of('pais_id', 'message: Indica el pais de ubicación de la sucursal.');
-        $this->validates_presence_of('estado_id', 'message: Indica el estado de ubicación de la sucursal.');
-		$this->validates_presence_of('municipio_id', 'message: Indica el municipio de ubicación de la sucursal.');
-        $this->validates_presence_of('parroquia_id', 'message: Indica la parroquia de ubicación de la sucursal.');
-          */      
     }  
     
     /**
@@ -92,35 +84,74 @@ class Sucursal extends ActiveRecord {
         if ($optData) {
             $obj->dump_result_self($optData);
         }   
-        if($method!='delete') {
-            $obj->parroquia_id = Parroquia::setParroquia($obj->parroquia_id)->id;        
-        }
         $rs = $obj->$method();
-        
         return ($rs) ? $obj : FALSE;
     }
     /**
      * Método que se ejecuta antes de guardar y/o modificar     
      */
     public function before_save() {        
-      /*  $this->sucursal = Filter::get($this->sucursal, 'string');        
-        //$this->sucursal_slug = DwUtils::getSlug($this->sucursal); 
-        $this->pais_id = Filter::get($this->pais_id, 'string');
-        $this->estado_id = Filter::get($this->estado_id, 'string');
-        $this->municipio_id = Filter::get($this->municipio_id, 'string');
-        $this->parroquia_id = Filter::get($this->parroquia_id, 'string');
-        $this->direccion = Filter::get($this->direccion, 'string');
-        $this->telefono = Filter::get($this->telefono, 'numeric');
-        $this->celular = Filter::get($this->celular, 'numeric');
-        $this->fax = Filter::get($this->fax, 'numeric');        
-        */
-        $conditions = "sucursal = '$this->sucursal' AND parroquia_id = $this->parroquia_id AND empresa_id = $this->empresa_id";
+    /*    $conditions = "sucursal = '$this->sucursal' AND parroquia_id = $this->parroquia_id AND empresa_id = $this->empresa_id";
         $conditions.= (isset($this->id)) ? " AND id != $this->id" : '';
         if($this->count("conditions: $conditions")) {
             DwMessage::error('Lo sentimos, pero ya existe una sucursal registrada con el mismo nombre y parroquia.');
             return 'cancel';
-        }   
-    }   
+        }*/
+        //MAYUSCULAS A LA BD
+        $this->sucursal = strtoupper($this->sucursal);
+        $this->direccion = strtoupper($this->direccion);
+    }
+    /**
+     * Método para buscar sucursales
+     */
+    public function getAjaxSucursales($field, $value, $order='', $page=0) {
+        $value = Filter::get($value, 'string');
+        if( strlen($value) < 1 OR ($value=='none') ) {
+            return NULL;
+        }
+        if($field=='parroquia'){ $field ='parroquia.nombre';}
+
+        $columns = 'sucursal.*, parroquia.*, parroquia.id as idparroquia ';
+        $join = 'INNER JOIN parroquia  ON  sucursal.parroquia_id = parroquia.id ';   
+        $order = $this->get_order($order, 'sucursal', array(                        
+            'sucursal' => array(
+                'ASC'=>'sucursal.sucursal ASC, sucursal.direccion ASC', 
+                'DESC'=>'sucursal.sucursal DESC, sucursal.direccion DESC'
+            ),
+            'direccion' => array(
+                'ASC'=>'sucursal.direccion ASC, sucursal.sucursal ASC', 
+                'DESC'=>'sucursal.direccion DESC, sucursal.sucursal DESC'
+            ),
+            'celular' => array(
+                'ASC'=>'sucursal.cedula ASC, sucursal.apellido1 ASC', 
+                'DESC'=>'sucursal.cedula DESC, titular.apellido1 DESC'
+            ),
+            'parroquia' => array(
+                'ASC'=>'parroquia.nombre ASC, sucursal.sucursal ASC', 
+                'DESC'=>'parroquia.nombre DESC, sucursal.sucursal DESC'
+            ),
+            'telefono' => array(
+                'ASC'=>'sucursal.telefono ASC, sucursal.sucursal ASC, sucursal.direccion ASC', 
+                'DESC'=>'sucursal.telefono DESC, sucursal.sucursal DESC, sucursal.direccion DESC'
+            ),
+        ));
+        
+        //Defino los campos habilitados para la búsqueda
+        $fields = array('sucursal', 'direccion', 'celular','parroquia.nombre', 'telefono');
+        if(!in_array($field, $fields)) {
+            $field = 'sucursal';
+        }        
+        //if(! ($field=='parroquia' && $value=='todas') ) {
+          $conditions= " $field LIKE '%$value%'";
+        //} 
+
+        if($page) {
+            return $this->paginated("columns: $columns", "join: $join","conditions: $conditions",  "order: $order", "page: $page");
+        } else {
+            return $this->find("columns: $columns", "join: $join","conditions: $conditions", "order: $order");
+        }  
+        //"conditions: $conditions",
+    } 
     /**
      * Callback que se ejecuta antes de eliminar
      */
